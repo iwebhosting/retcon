@@ -1,0 +1,268 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"> 
+<head> 
+    <meta http-equiv="pragma" content="no-cache" /> 
+    <link rel="icon" href="/static/img/defcon-icon.png" type="image/png" /> 
+    <link rel="shortcut icon" href="/static/img/defcon-icon.png" type="image/png" /> 
+    <link href='http://fonts.googleapis.com/css?family=Istok+Web' rel='stylesheet' type='text/css'>
+    <meta name="apple-mobile-web-app-capable" content="yes" /> 
+    <meta name="viewport" content="width=320" /> 
+    <link rel="apple-touch-icon" href="/static/img/defcon-icon.png" /> 
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" /> 
+    <link href="/static/jquery-ui-1.8.13.custom.css" media="screen" rel="stylesheet" type="text/css" /> 
+    <title>iWeb Operations Retcon</title>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.13/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="/static/jquery.ba-dotimeout.min.js"></script>
+    <style>
+    body {
+        background-color: black;
+        margin: 0px;
+    }
+    .extra {
+        color: #acc;
+        font-size: 60%;
+    }
+    a.url {
+      color: blue;
+    }
+    .Crit {
+        background-color: #f22;
+    }
+    .Issue {
+        background-color: #fe2;
+    }
+    .Flapping {
+        background-color: #fa0;
+    }
+    .Issue, .Crit, .Flapping {
+        font-family: 'Istok Web', sans-serif;
+        color: black;
+        border-radius: 3px;
+        padding: 3px;
+        margin: 2px;
+        clear: right;
+    }
+    .Crit a, .Issue a, .Flapping a {
+        color: blue;
+    }
+    #box .Issue, #box .Crit, #box .Flapping {
+        float: left;
+    }
+    .Small {
+        padding: 3px;
+        border-radius: 3px;
+        margin: 2px;
+    }
+    h1 {
+        font-size: 16px;
+    clear: both;
+    }
+    h2 {
+        font-size: 16px
+    }
+    blockquote {
+        border-left: 2px solid #909090;
+        padding-left: 10px;
+        margin-left: 10px;
+    }
+    .host {
+        width: 360px;
+        float: left;
+    }
+    .dcdiv {
+        z-index: -9;
+        position: absolute;
+        text-align: center;
+        width: 100%;
+    }
+    .dcspan {
+        text-align: center;
+        font-size: 2000%;
+        opacity: 0.8;
+        font-weight: bolder;
+    }
+    #box {
+        width: 100%;
+        position: fixed;
+        background: #ccc;
+        margin: 0;
+        padding: 0px;
+    }
+    body {
+        margin: 0;
+        padding: 0;
+    }
+    #spacer {
+        height: 35px; 
+        width: 100%;
+    }
+    </style>
+</head>
+
+<body>
+    <div id="box">
+        <span id="count_critical" class="Small Crit">x</span>
+        <span id="loading_critical" class="Small Crit">&#x262F;</span>
+        <span id="count_flapping" class="Small Flapping">x</span>
+        <span id="loading_flapping" class="Small Flapping">&#x262F;</span>
+        <span id="count_issues" class="Small Issue">x</span>
+        <span id="loading_issues" class="Small Issue">&#x262F;</span>
+    </div>
+    <div id="spacer">&nbsp;</div>
+    <div id="ack_dialog" title="Confirm acknowledgement" style="display: none;">
+        <p>
+            How long would you like to acknowledge for?
+            <select id="ack_duration">
+                <option value="3600">1 hour</option>
+                <option value="14400">4 hours</option>
+                <option value="43200">12 hours</option>
+                <option value="86400">1 day</option>
+                <option value="259200">3 days</option>
+            </select>
+        </p>
+    </div>
+    <div id="notes">
+    </div>
+    <div id="critical_issues">
+    </div>
+    <div id="flapping">
+    </div>
+    <div id="issues">
+    </div>
+    <audio src="/static/sleighbells.ogg" id="horse"></audio>
+    <audio src="/static/sleighbells-backwards.ogg" id="horsebackwards"></audio>
+</body>
+<script type="text/javascript">
+    String.prototype.parseURL = function() {
+        return this.replace(/[A-Za-z]+:\/\/[A-Za-z0-9-_]+\.[A-Za-z0-9-_:%&~\?\/.=]+/g, function(url) {
+            return url.link(url);
+        });
+    };
+    function id_for_issue(issue) {
+        var backend = issue['backend'];
+        var host = issue['host'];
+        var service = issue['service'];
+        var id = [backend, host, service].join('');
+        id = id.replace(/[^A-Za-z0-9]/g, "");
+        return id;
+    }
+    function perform_ack(backend, host, service, duration) {
+        $.post('/api/ack', {
+            "backend": backend,
+            "host": host,
+            "service": service,
+            "duration": duration});
+        return false;
+    }
+    function confirm_ack(event) {
+        var ack = $("#ack_dialog");
+        var issue = this.issue;
+        var issuediv = $(this.parentElement.parentElement);
+        ack.dialog({
+                autoOpen: true,
+                modal: true,
+                buttons: {
+                    "OK": function(event) { 
+                        perform_ack(
+                            issue["backend"],
+                            issue["host"],
+                            issue["service"],
+                            $("#ack_duration").val()
+                        );
+                        issuediv.fadeOut("slow");
+                        $(this).dialog("close");
+                    },
+                    "Cancel": function() { $(this).dialog("close"); 
+                    }
+                }
+        });
+    }
+    function add_more_info(elem, issue) {
+        elem.append('Information: ' + issue['status_information'] + '<br />')
+        elem.append('Duration: ' + issue['duration'] + '<br />')
+        elem.append('Last check: ' + issue['last_check'] + '<br />')
+        elem.append('Backend: ' + issue['backend'] + '<br />');
+
+    }
+    function element_for_issue(id, issue, klass) {
+        var new_element = $('<div class="' + klass + '" id="' + id + '" style="display:none">');
+        if(issue['host']) {
+            new_element.append('Host: <a class="url" href="ssh://' + issue['host'] + '">' + issue['host'] + '</a> &mdash; ');
+        }
+        if(issue['service']) {
+            new_element.append('Service: ' + issue['service'].parseURL());
+        }
+        var spoon = $('<div style="float: right"></div>');
+        var new_ack = $('<a href="#">Ack</a>');
+        var new_more = $('<a href="#">More info</a>');
+        new_element[0].onmouseover = function () {
+            this.style.backgroundColor = '#bbb';
+        };
+        new_element[0].onmouseout = function () {
+            this.style.backgroundColor = '';
+        };
+        new_ack[0].issue = issue;
+        new_ack[0].onclick = confirm_ack;
+        new_more[0].onclick = function () {
+          $(this).parent().parent().find('.moreinfo').slideToggle();
+        };
+        var sp = $(spoon[0]);
+        sp.append(new_ack);
+        sp.append(' ');
+        sp.append(new_more);
+        new_element.append(spoon);
+        var more_element = $('<div class="moreinfo" style="display:none">')
+        add_more_info(more_element, issue);
+        new_element.append(more_element);
+        new_element.append($('<br style="clear: both"/>'));
+        new_element.fadeIn('slow');
+        return new_element
+    }
+    function update_element(id, issue, klass) {
+      var elem = $('#' + id + ' .moreinfo');
+      elem.empty();
+      add_more_info(elem, issue);
+    }
+    function refresh_something(selector, api, dictionary, class_) {
+        var loading_box = $('#loading_' + dictionary);
+        loading_box[0].style.display = '';
+        $.getJSON(api, function(data) {
+            var container = $(selector);
+            var ids = [];
+            $.each(data[dictionary], function (index, issue) {
+                var id = id_for_issue(issue);
+                ids.push(id);
+                if ( $('#' + id).length > 0 ) {
+                    update_element(id, issue, class_);
+                } else {
+                    var e = element_for_issue(id, issue, class_);
+                    container.append(e);
+                    if(dictionary == 'critical') $('#horse')[0].play();
+                }
+            })
+            loading_box[0].style.display = 'none';
+            $('#count_' + dictionary)[0].innerHTML = ids.length;
+            $(selector + ' .' + class_).each( function (index, elem) {
+                if ( $.inArray(elem.id, ids) == -1  ) {
+                  $(elem).fadeOut('slow', function() {
+                      $(this).remove();
+                      if(dictionary == 'critical') $('#horsebackwards')[0].play();
+                  });
+                }
+            });
+        })
+    }
+    $(document).ready(function() {
+        refresh_something('#critical_issues', '/api/critical?t=' + (new Date().getTime()), 'critical', 'Crit');
+        refresh_something('#issues', '/api/issues?t=' + (new Date().getTime()), 'issues', 'Issue');
+        refresh_something('#flapping', '/api/flapping?t=' + (new Date().getTime()), 'flapping', 'Flapping');
+        $.doTimeout( 30000, function () {
+            refresh_something('#critical_issues', '/api/critical?t=' + (new Date().getTime()), 'critical', 'Crit');
+            refresh_something('#issues', '/api/issues?t=' + (new Date().getTime()), 'issues', 'Issue');
+            refresh_something('#flapping', '/api/flapping?t=' + (new Date().getTime()), 'flapping', 'Flapping');
+            return true;
+        });
+     });
+</script>
+</html>
