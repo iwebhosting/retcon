@@ -1,0 +1,14 @@
+RETCON_URL='http://retcon.url/'
+RETCON_CRIT_API='api/critical'
+POLL_INTERVAL=120
+BACKENDS = [
+    [
+        'http://icingauser:icingapasswd@icinga.local/cgi-bin/icinga',
+        'icingauser',
+        'icinga_1'
+    ],
+]
+
+# BACKENDS is a list of backends, which is a triple of a URL to the Icinga
+# classic CGI-BIN, a user to perform actions (like acknowleding) as, and a
+# unique reference for this backend.
